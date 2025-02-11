@@ -76,6 +76,7 @@ def define_gello_features(cfg: ConvertConfig) -> Dict[str, Any]:
         },
         "observation.state": {
             "dtype": "float32",
+            # CAUTION: ここでのjoint_positionsにgripper_positionは含まれない
             "shape": (7,),  # 6 (joint_positions) + 1 (gripper_position)
             "names": {
                 "joint_positions": [f"joint_pos_{i}" for i in range(6)],
@@ -208,14 +209,18 @@ def load_gello_episode(cfg: ConvertConfig, episode_path: Path):
         # state を joint_positions, gripper_position (+ joint_velocities, ee_pos_quat) の連結とする
         state_parts = []
 
-        state_parts.append(torch.tensor(data["joint_positions"], dtype=torch.float32))
+        state_parts.append(
+            torch.tensor(data["joint_positions"][:-1], dtype=torch.float32)
+        )  # 最後にgripper_positionがあるため除く
         state_parts.append(
             torch.tensor(data["gripper_position"], dtype=torch.float32).reshape(
                 1,
             )
         )
         if cfg.use_joint_vel:
-            state_parts.append(torch.tensor(data["joint_velocities"], dtype=torch.float32))
+            state_parts.append(
+                torch.tensor(data["joint_velocities"][:-1], dtype=torch.float32)
+            )  # 最後にgripper_velocityがあるため除く
         if cfg.use_ee_pos_quat:
             state_parts.append(torch.tensor(data["ee_pos_quat"], dtype=torch.float32))
 
@@ -239,9 +244,6 @@ def load_gello_episode(cfg: ConvertConfig, episode_path: Path):
         # 最後は何もしない
         frames[-1]["action"][:-1] = torch.zeros_like(frames[-1]["action"][:-1], dtype=torch.float32)
 
-    import pdb
-
-    pdb.set_trace()
     return frames
 
 
